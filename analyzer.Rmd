@@ -1,0 +1,476 @@
+---
+title: "S3 Analyzer"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: flatly
+    orientation: row
+    css: www/styles.css
+    vertical_layout: fill
+    social: [ "twitter", "linkedin"]
+    source_code: embed
+    
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+
+# Clear Environment variables
+rm(list=ls())
+
+# Loading Required Libraries
+library(flexdashboard) # Easy interactive dashboards for Rmarkdown
+library(DT) # For diaplaying tables on HTML pages and many other features in tables
+library(data.table) # For data manipulation
+library(plotly) # For Interactive Visualizations
+library(tools) # for extension of a file path
+library(gdata) # For Human Readable File sizes
+
+```
+
+```{r global, result = "hide"}
+
+
+# Function process_df() applies some pre-processing steps on dataframe before analysis
+source("00_Scripts/process_df.R")
+
+# Function frequency_table() generates a frequency table for the s3 bucket
+source("00_Scripts/freq_table.R")
+
+# Function summary_s3() generates metadata for the s3 bucket
+source("00_Scripts/summary_s3.R")
+
+# Loading default processed file
+df<-data.table(readLines('00_Data/s3_analysis_nasanex.csv'))
+
+# Generating frequency table for default df
+result<-frequency_table(process_df(df),50)
+
+# Generating Metadata for processed file
+sum_tbl <-summary_s3(process_df(df))
+
+```
+
+Analyzer {data-orientation=rows data-icon="fas fa-chart-line"}
+=======================================================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+```{r, result="hide"}
+
+# Enable Shiny JS with flexdashboard (Reset = Reset + Apply)
+useShinyjs(rmd = TRUE)
+
+global <- reactiveValues(df = df)
+global <- reactiveValues(sum_tbl= sum_tbl)
+
+options(shiny.maxRequestSize=50*1024^2)
+
+fileInput("data", h4("Upload CSV File"),
+          multiple = FALSE,
+          accept = c("text/csv",
+                     "text/comma-separated-values,text/plain",
+                     ".csv"))
+
+observeEvent(input$data, global$df <- input$data)
+
+rv <- reactiveValues(
+  data = NULL
+)
+
+
+new_df <- reactive({
+  if(is.null(input$data)){df}
+  else if(!is.null(input$data)){data.table(readLines(input$data$datapath))
+} 
+  else{
+    hot_to_r(input$hot)
+  }
+})
+
+global <- reactiveValues(new_df= new_df)
+
+
+# Picker Input Widget: Bin_size
+shinyWidgets::pickerInput(
+  inputId  = "bin_size",
+  label    = h4("Select Bin Size (MiB) "),
+  choices  = c(20,40,50,60,80,100),
+  selected = 50,
+  options = list(
+    `actions-box` = TRUE,  # Note back ticks
+    size = 10,
+    `selected-text-format` = "count > 3"
+  )
+)
+
+# Apply Button
+actionButton(inputId = "apply", 
+             label   = "Apply", 
+             icon    = icon("play"),
+             width   = '49%')
+
+# Reset button
+actionButton(inputId = "reset",
+             label = "Reset",
+             icon = icon("sync"),
+             style = "width:49%;margin-left:3px")
+
+observeEvent(eventExpr = input$reset, # When button is clicked...
+             handlerExpr = {  # ...this is executed
+               
+               
+               # Update picker widget: Bin Size
+               updatePickerInput(
+                 session = session,
+                 inputId = "bin_size",
+                 selected = 50)
+
+          
+               
+               # Delay and Mimic click on Apply button 
+               shinyjs::delay(ms = 300, expr = {
+                 shinyjs::click(id = "apply")
+               })
+               
+             })
+
+```
+
+
+```{r}
+# Reactive Event: waits until a button (Apply) is clicked to run reactive code 
+
+result_tbl <- eventReactive(
+  eventExpr = input$apply, 
+  
+  valueExpr = {
+    
+    df <- process_df(new_df())
+    processed_df<-frequency_table(df,as.numeric(input$bin_size)) 
+    processed_df  
+     
+  },
+  ignoreNULL = FALSE  # Don't pass data as default: run code when app loads
+)
+```
+
+```{r}
+# Reactive Event
+
+n_files <- eventReactive(
+  eventExpr = input$apply, 
+  
+  valueExpr = {
+    
+    files_len <- nrow(new_df())
+    files_len<-format(files_len,big.mark = ",")
+  
+  },
+  ignoreNULL = FALSE  # Don't pass data as default: run code when app loads
+)
+```
+
+
+```{r}
+# Reactive Event
+
+sum_tbl <- eventReactive(
+  eventExpr = input$apply, 
+  
+  valueExpr = {
+    
+    df <- new_df() 
+    df <- process_df(df)
+    sum_df<- summary_s3(df)
+    sum_df
+  },
+  ignoreNULL = FALSE  # Don't pass data as default: run code when app loads
+)
+```
+
+
+```{r}
+# Function to drop levels from a factor variable
+remove_levels<- function(x){levels(droplevels(x))}
+```
+
+
+```{r}
+#Row {data-width=400}
+#-------------------------------------  
+result <- reactive({
+  
+  result_df <- result_tbl() 
+  colnames(result_df) <- c("Partitions_Range(MiB)","No_of_Partitions")
+  result_df$Per_Files <- round((result_df$No_of_Partitions/nrow(new_df()))*100,0)
+  colnames(result_df) <- c("Partition_Range(MiB)","No_of_Partitions", paste('% Files'))
+  result_df$No_of_Partitions <- format(result_df$No_of_Partitions,big.mark=",")
+  result_df
+})
+#renderPrint(result())
+```
+
+
+
+Row {data-width=200}
+-------------------------------------
+
+### Total Partitions {.value-box}
+
+```{r}
+renderValueBox({
+  valueBox(value   = n_files(),
+           caption = "Total Partitions",
+           icon    = "fa-file",
+           color   = "danger")
+})
+```
+
+### Total Space {.value-box}
+
+```{r}
+renderValueBox({
+  
+  valueBox(value   = remove_levels(sum_tbl()$total_space),
+           caption = "Total Space",
+           icon    = "fas fa-database",
+           color   = "info")
+})
+```
+
+### Average Partition Size {.value-box}
+
+```{r}
+renderValueBox({
+  
+  valueBox(value   = remove_levels(sum_tbl()$avg_file_size),
+           caption = "Average Partition Size",
+           icon    = "far fa-chart-bar",
+           color   = "rgba(255, 117, 24, 0.7)")
+})
+
+```
+
+Row {data-height=850}
+---------------------------------------------------------------
+
+
+### Frequency Table {data-width=352}
+
+```{r}
+DT::renderDataTable({
+
+datatable(result(),class = 'cell-border stripe',
+    rownames = FALSE,escape=FALSE,
+  extensions = 'Buttons', options = list(bFilter=FALSE,
+    autoWidth = TRUE,
+    scrollY = "400px", scrollX="300px", pageLength = 1000,
+    dom = 'Bfrtip',
+    buttons = c( 'csv', 'excel')
+  )
+    )
+})
+```
+
+```{r}
+plot_result <- reactive({
+  
+  result_df <- result_tbl() 
+  result_df$No_of_Partitions <- format(result_df$frequency,big.mark=",")
+  colnames(result_df) <- c("Buckets","frequency","No_of_Partitions")
+  result_df$Percentage_Files <- round(result_df$frequency/nrow(new_df()),0) *100
+  result_df[,c(1,2)]
+})
+```
+
+
+
+### Distribution of s3 Partitions {data-width=648}
+
+```{r}
+
+# Plotly Output
+
+renderPlotly({
+
+      p <- plot_ly(
+  x = plot_result()$Buckets,
+  y = plot_result()$frequency,
+  name = "Histogram of s3 File Sizes",
+  type = "bar",
+  marker = list(color = 'rgb(158,202,225)',
+                line = list(color = 'rgb(8,48,107)',
+                            width = 1.5))
+) %>%
+  layout(
+    xaxis = list(
+      type = 'category',
+      title = 'Partition Range (MiB)'
+    ),
+    yaxis = list(
+      title = 'Number of Partitions'
+    )
+  ) 
+ 
+})
+
+```
+
+```{r eval=FALSE}
+rsconnect::deployApp("/Users/raj/Desktop/s3_location_analyzer/s3_analyzer/")
+```
+Metadata {data-orientation=rows data-icon="fa fa-tag"}
+============================================================== 
+
+### Useful Metadata {data-width=100}
+
+Following metadata points might be useful for digging further insights into your s3 bucket analysis: 
+
+* Unique File Extension (.csv, .gz, .nc, .parquet)
+* Unique File Extensions Name 
+* Most frequent extension (.gz)
+* Largest file size
+* Largest file name
+* Smallest file size
+* Smallest file name
+* Earliest file date
+* Earliest file name
+* Latest file date
+* Latest file names
+
+**Note**
+  
+Please note if there are multiple which qualifies either for large or small, 
+analyzer shows up the one whichever is seen first in the file uploaded.
+
+
+### MetadataTable {data-width=100}
+
+```{r}
+DT::renderDataTable({
+  
+  summary_df<-data.table(t(sum_tbl()[4:14]))
+  rownames(summary_df)<- c("Unique_file_extension","unique_extensions_name","Most_frequent_extension","Largest_file_size","Largest_file_name"
+                     ,"Smallest_file_size","Smallest_file_name","Earliest_file_date","Earliest_file_name",
+                     "Latest_file_date","Latest_file_name")
+  summary_df<-tibble::rownames_to_column(summary_df, "Metadata")
+  colnames(summary_df) <- c("Metadata","Value")
+
+  datatable(summary_df,class = 'cell-border stripe',
+            rownames = FALSE,escape=FALSE,
+            extensions = 'Buttons', options = list(bFilter=FALSE,
+                                                   autoWidth = TRUE,
+                                                   pageLength = 200,
+                                                   scrollX="300px",
+                                                   paging= FALSE,
+                                                   dom = 'Bfrtip',
+                                                   buttons = c( 'csv', 'excel')
+            )
+  
+  )
+
+})
+```
+
+
+About {data-orientation=rows data-icon="fa-info-circle"}
+============================================================== 
+
+### About S3 Analyzer
+
+#### Why s3 Analyzer ? 
+
+* See how partitions under your s3 bucket/path are distributed (in terms of size)
+* [AWS CLI](https://aws.amazon.com/cli/) summarise provides file sizes which are not uniform in size
+* s3 Analyzer converts all different file sizes (PiB,TiB,GiB,KiB,Bytes) to a uniform unit i.e **MiB** 
+* Renders **total partitions** under s3 bucket/path  
+* Creates a **frequency table** for all files and shows **% files** in each s3 bucket 
+* Renders a interactive bar plot to **visually** show how your partitions are distributed
+
+####  How to use App ? 
+
+* s3 Analyzer loads a default processed public s3 dataset [GEOS-Chem on cloud](https://cloud-gc.readthedocs.io/en/stable/chapter02_beginner-tutorial/use-s3.html) (Total Objects: 11,948,
+                                                                                                                                                                    Total Size: 4.2 TiB)
+* You can upload your processed file (**max file size** = **50 MiB**) using **AWS CLI** on your s3 bucket/path
+* Choose bin size - (50 MiB or 100 MiB)
+* Click on Apply button for action 
+
+
+#### Processed files from s3 bucket
+
+* Here is few processed datasets available at my [github repo]() to try the web app      
+
+* You can also create processed files using public s3 buckets at [AWS Open Data](https://registry.opendata.aws/)
+
+
+#### How to get processed file from **AWS CLI** ?
+
+* Following command using the ls to list all files and
+   --human-readable displays file size in Bytes/MiB/KiB/GiB/TiB/PiB/EiB 
+   --summarize displays the total number of objects and total size at the end of the result 
+   and copies the output to s3_analysis.csv file 
+   
+<pre>
+aws s3 ls --recursive --human-readable --summarize  s3://nasanex/NEX-GDDP/BCSD/rcp45/ > s3_analysis_nasanex.csv
+</pre>
+     
+* Upload the processed file **s3_analysis_nasanex.csv** to **s3 Analyzer**     
+
+
+     
+### Tools
+
+[R v3.5.1](https://www.r-project.org/) and [RStudio v1.2.1335](https://www.rstudio.com/) were used to build this tool.
+
+The packages used were:
+
+* [flexdashboard](https://rmarkdown.rstudio.com/flexdashboard/) to create a frame for the content
+* [DT](https://rstudio.github.io/DT/) for the interactive table
+* [data.table]()  for data manipulation
+* [plotly](https://github.com/ropensci/plotly) for interactive visualization
+* [tools](https://github.com/ropensci/plotly) for extension of a file path
+* [gdata](https://github.com/ropensci/plotly) for Human Readable File sizes
+* [Ion icons](https://ionicons.com/) and [Font Awesome](https://fontawesome.com/) for icons
+
+
+#### Interactive Plot
+
+You can:
+  
+* click the camera button to download bar plot as png
+* zoom with the '+' and '-' buttons (top-right) or with your mouse's scroll wheel
+* click the button showing a broken square (top-left under the zoom options) to select points on the plot using a window that's 
+draggable (click and hold the grid icon in the upper left) and resizeable (click and drag the white boxes in each corner)
+
+
+#### Interactive Table
+
+You can:
+
+* sort the columns (ascending and descending) by clicking on the column header
+* scroll the table vertcially to see all elements 
+* click 'CSV' or 'Excel' to download the  data to a .csv file or a .xlsx
+
+    
+### Contact
+
+For any feedback, comments or questions, please email me at raj.k.stats@gmail.com.
+
+* [Twitter](https://twitter.com/rajkstats)
+* [LinkedIn](https://www.linkedin.com/in/rajkstats/)
+
+
+#### Credits
+
+* Public s3 dataset [GEOS-Chem on cloud](https://cloud-gc.readthedocs.io/en/stable/chapter02_beginner-tutorial/use-s3.html) (Total Objects: 11,948
+                      Total Size: 4.2 TiB)
+
+* Public s3 datasets [AWS opendata](https://registry.opendata.aws/)
+
+* Inspired from this [Blogpost](https://whitfin.io/analyzing-your-buckets-with-s3-meta/)
+
+* Inspired from [Sales Dashboard By Joon](https://joon.shinyapps.io/veh_parts_sales_dash/)
+  
+

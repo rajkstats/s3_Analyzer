@@ -1,0 +1,12 @@
+name: S3Analyzer
+title: S3Analyzer
+username:
+account: gitdiscoverer
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1037945
+bundleId: 2250582
+url: https://rajk.shinyapps.io/S3Analyzer/
+when: 1563657625.70132
+asMultiple: FALSE
+asStatic: FALSE
