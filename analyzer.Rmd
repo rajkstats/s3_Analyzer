@@ -20,11 +20,14 @@ rm(list=ls())
 
 # Loading Required Libraries
 library(flexdashboard) # Easy interactive dashboards for Rmarkdown
+library(shinyWidgets) # For providing some custom widgets to pimp your shiny apps
+library(shinyjs) # For improving the user experience of your Shiny apps
 library(DT) # For diaplaying tables on HTML pages and many other features in tables
 library(data.table) # For data manipulation
 library(plotly) # For Interactive Visualizations
 library(tools) # for extension of a file path
 library(gdata) # For Human Readable File sizes
+library(stringr) # For string manipulation
 
 ```
 
@@ -164,7 +167,11 @@ n_files <- eventReactive(
   
   valueExpr = {
     
-    files_len <- nrow(new_df())
+    df<-new_df()
+    colnames(df)<-c("V1")
+    pos<- which(nchar(df$V1)<30)
+    ifelse(length(pos)>0,df<-df[-pos,],"")
+    files_len <- nrow(df)
     files_len<-format(files_len,big.mark = ",")
   
   },
@@ -384,7 +391,7 @@ About {data-orientation=rows data-icon="fa-info-circle"}
 
 * See how partitions under your s3 bucket/path are distributed (in terms of size)
 * [AWS CLI](https://aws.amazon.com/cli/) summarise provides file sizes which are not uniform in size
-* s3 Analyzer converts all different file sizes (PiB,TiB,GiB,KiB,Bytes) to a uniform unit i.e **MiB** 
+* s3 Analyzer converts all different file sizes (EiB,PiB,TiB,GiB,KiB,Bytes) to a uniform unit i.e **MiB** 
 * Renders **total partitions** under s3 bucket/path  
 * Creates a **frequency table** for all files and shows **% files** in each s3 bucket 
 * Renders a interactive bar plot to **visually** show how your partitions are distributed
@@ -400,7 +407,9 @@ About {data-orientation=rows data-icon="fa-info-circle"}
 
 #### Processed files from s3 bucket
 
-* Here is few processed datasets available at my [github repo]() to try the web app      
+* Here are few processed datasets available at analyzer [github repo](https://github.com/rajkstats/s3_Analyzer/blob/master/00_Data/) to try the web app taken from: 
+  * [common-crawl](https://registry.opendata.aws/commoncrawl/)
+  * [gdelt](https://registry.opendata.aws/gdelt/)       
 
 * You can also create processed files using public s3 buckets at [AWS Open Data](https://registry.opendata.aws/)
 
@@ -411,15 +420,14 @@ About {data-orientation=rows data-icon="fa-info-circle"}
    --human-readable displays file size in Bytes/MiB/KiB/GiB/TiB/PiB/EiB 
    --summarize displays the total number of objects and total size at the end of the result 
    and copies the output to s3_analysis.csv file 
-   
-<pre>
-aws s3 ls --recursive --human-readable --summarize  s3://nasanex/NEX-GDDP/BCSD/rcp45/ > s3_analysis_nasanex.csv
-</pre>
+
+   <pre>
+     aws s3 ls --recursive --human-readable --summarize  s3://nasanex/NEX-GDDP/BCSD/rcp45/ > s3_analysis_nasanex.csv
+   </pre>      
+
      
 * Upload the processed file **s3_analysis_nasanex.csv** to **s3 Analyzer**     
 
-
-     
 ### Tools
 
 [R v3.5.1](https://www.r-project.org/) and [RStudio v1.2.1335](https://www.rstudio.com/) were used to build this tool.
@@ -430,8 +438,11 @@ The packages used were:
 * [DT](https://rstudio.github.io/DT/) for the interactive table
 * [data.table]()  for data manipulation
 * [plotly](https://github.com/ropensci/plotly) for interactive visualization
-* [tools](https://github.com/ropensci/plotly) for extension of a file path
-* [gdata](https://github.com/ropensci/plotly) for Human Readable File sizes
+* [tools](http://web.mit.edu/~r/current/arch/amd64_linux26/lib/R/library/tools/html/tools-package.html) for extension of a file path
+* [gdata](https://cran.r-project.org/web/packages/gdata/index.html) for Human Readable File sizes
+* [stringr](https://www.rdocumentation.org/packages/stringr/versions/1.4.0)  for string manipulation
+* [shinyWidgets](https://github.com/dreamRs/shinyWidgets) for providing some custom widgets to pimp your shiny apps
+* [shinyjs](https://github.com/daattali/shinyjs) for improving the user experience of your Shiny apps
 * [Ion icons](https://ionicons.com/) and [Font Awesome](https://fontawesome.com/) for icons
 
 

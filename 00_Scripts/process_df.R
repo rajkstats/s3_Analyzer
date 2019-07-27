@@ -2,9 +2,11 @@
 
 process_df <- function(df){
   
-  # Removing last 3 rows, which are total object, total size and a blank line
-  df<-head(df,-3)
   colnames(df) <-c("V1")
+  # Removing last 3 rows, which are total object, total size and a blank line if present in processed file
+  pos<- which(nchar(df$V1)<30)
+  ifelse(length(pos)>0,df<-df[-pos,],"")
+  #df<-head(df,-3)
   
   processed_df<-data.table(str_split_fixed(df$V1, " ", 2))
   processed_df<-data.table(processed_df$V1,str_split_fixed(processed_df$V2, " ", 2))
