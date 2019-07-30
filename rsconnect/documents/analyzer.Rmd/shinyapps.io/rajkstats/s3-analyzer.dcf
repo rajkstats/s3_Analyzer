@@ -1,0 +1,12 @@
+name: s3-analyzer
+title: s3-analyzer
+username:
+account: rajkstats
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1044895
+bundleId: 2277587
+url: https://rajkstats.shinyapps.io/s3-analyzer/
+when: 1564509441.17346
+asMultiple: FALSE
+asStatic: FALSE

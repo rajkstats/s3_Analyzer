@@ -210,11 +210,12 @@ remove_levels<- function(x){levels(droplevels(x))}
 result <- reactive({
   
   result_df <- result_tbl() 
-  colnames(result_df) <- c("Partitions_Range(MiB)","No_of_Partitions")
-  result_df$Per_Files <- round((result_df$No_of_Partitions/nrow(new_df()))*100,0)
-  colnames(result_df) <- c("Partition_Range(MiB)","No_of_Partitions", paste('% Files'))
-  result_df$No_of_Partitions <- format(result_df$No_of_Partitions,big.mark=",")
+  colnames(result_df) <- c("File_Range (MiB)","No_of_Files")
+  result_df$Per_Files <- round((result_df$No_of_Files/nrow(new_df()))*100,0)
+  colnames(result_df) <- c("File_Range (MiB)","No_of_Files", paste('% Files'))
+  result_df$No_of_Files <- format(result_df$No_of_Files,big.mark=",")
   result_df
+  
 })
 #renderPrint(result())
 ```
@@ -224,12 +225,12 @@ result <- reactive({
 Row {data-width=200}
 -------------------------------------
 
-### Total Partitions {.value-box}
+### Total Files {.value-box}
 
 ```{r}
 renderValueBox({
   valueBox(value   = n_files(),
-           caption = "Total Partitions",
+           caption = "Total Files",
            icon    = "fa-file",
            color   = "danger")
 })
@@ -247,13 +248,13 @@ renderValueBox({
 })
 ```
 
-### Average Partition Size {.value-box}
+### Average File Size {.value-box}
 
 ```{r}
 renderValueBox({
   
   valueBox(value   = remove_levels(sum_tbl()$avg_file_size),
-           caption = "Average Partition Size",
+           caption = "Average File Size",
            icon    = "far fa-chart-bar",
            color   = "rgba(255, 117, 24, 0.7)")
 })
@@ -272,7 +273,7 @@ DT::renderDataTable({
 datatable(result(),class = 'cell-border stripe',
     rownames = FALSE,escape=FALSE,
   extensions = 'Buttons', options = list(bFilter=FALSE,
-    autoWidth = TRUE,
+    autoWidth = FALSE,
     scrollY = "400px", scrollX="300px", pageLength = 1000,
     dom = 'Bfrtip',
     buttons = c( 'csv', 'excel')
@@ -281,12 +282,13 @@ datatable(result(),class = 'cell-border stripe',
 })
 ```
 
+
 ```{r}
 plot_result <- reactive({
   
   result_df <- result_tbl() 
-  result_df$No_of_Partitions <- format(result_df$frequency,big.mark=",")
-  colnames(result_df) <- c("Buckets","frequency","No_of_Partitions")
+  result_df$No_of_Files <- format(result_df$frequency,big.mark=",")
+  colnames(result_df) <- c("Buckets","frequency","No_of_Files")
   result_df$Percentage_Files <- round(result_df$frequency/nrow(new_df()),0) *100
   result_df[,c(1,2)]
 })
@@ -294,7 +296,7 @@ plot_result <- reactive({
 
 
 
-### Distribution of s3 Partitions {data-width=648}
+### Distribution of s3 Files {data-width=648}
 
 ```{r}
 
@@ -314,10 +316,10 @@ renderPlotly({
   layout(
     xaxis = list(
       type = 'category',
-      title = 'Partition Range (MiB)'
+      title = 'File Range (MiB)'
     ),
     yaxis = list(
-      title = 'Number of Partitions'
+      title = 'Number of Files'
     )
   ) 
  
@@ -368,7 +370,7 @@ DT::renderDataTable({
   datatable(summary_df,class = 'cell-border stripe',
             rownames = FALSE,escape=FALSE,
             extensions = 'Buttons', options = list(bFilter=FALSE,
-                                                   autoWidth = TRUE,
+                                                   autoWidth = FALSE,
                                                    pageLength = 200,
                                                    scrollX="300px",
                                                    paging= FALSE,
@@ -389,16 +391,16 @@ About {data-orientation=rows data-icon="fa-info-circle"}
 
 #### Why s3 Analyzer ? 
 
-* See how partitions under your s3 bucket/path are distributed (in terms of size)
+* See how files under your s3 bucket/path are distributed (in terms of size)
 * [AWS CLI](https://aws.amazon.com/cli/) summarise provides file sizes which are not uniform in size
 * s3 Analyzer converts all different file sizes (EiB,PiB,TiB,GiB,KiB,Bytes) to a uniform unit i.e **MiB** 
-* Renders **total partitions** under s3 bucket/path  
+* Renders **total files** under s3 bucket/path  
 * Creates a **frequency table** for all files and shows **% files** in each s3 bucket 
-* Renders a interactive bar plot to **visually** show how your partitions are distributed
+* Renders a interactive bar plot to **visually** show how your files are distributed
 
 ####  How to use App ? 
 
-* s3 Analyzer loads a default processed public s3 dataset [GEOS-Chem on cloud](https://cloud-gc.readthedocs.io/en/stable/chapter02_beginner-tutorial/use-s3.html) (Total Objects: 11,948,
+* s3 Analyzer loads a default processed public s3 dataset [GEOS-Chem on cloud](https://cloud-gc.readthedocs.io/en/stable/chapter02_beginner-tutorial/use-s3.html) (Total Files: 11,948,
                                                                                                                                                                     Total Size: 4.2 TiB)
 * You can upload your processed file (**max file size** = **50 MiB**) using **AWS CLI** on your s3 bucket/path
 * Choose bin size - (50 MiB or 100 MiB)
@@ -469,13 +471,14 @@ You can:
 
 For any feedback, comments or questions, please email me at raj.k.stats@gmail.com.
 
+
 * [Twitter](https://twitter.com/rajkstats)
 * [LinkedIn](https://www.linkedin.com/in/rajkstats/)
 
 
 #### Credits
 
-* Public s3 dataset [GEOS-Chem on cloud](https://cloud-gc.readthedocs.io/en/stable/chapter02_beginner-tutorial/use-s3.html) (Total Objects: 11,948
+* Public s3 dataset [GEOS-Chem on cloud](https://cloud-gc.readthedocs.io/en/stable/chapter02_beginner-tutorial/use-s3.html) (Total Files: 11,948
                       Total Size: 4.2 TiB)
 
 * Public s3 datasets [AWS opendata](https://registry.opendata.aws/)
@@ -483,5 +486,3 @@ For any feedback, comments or questions, please email me at raj.k.stats@gmail.co
 * Inspired from this [Blogpost](https://whitfin.io/analyzing-your-buckets-with-s3-meta/)
 
 * Inspired from [Sales Dashboard By Joon](https://joon.shinyapps.io/veh_parts_sales_dash/)
-  
-
