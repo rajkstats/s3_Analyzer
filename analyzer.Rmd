@@ -46,6 +46,7 @@ source("00_Scripts/summary_s3.R")
 # Loading default processed file
 df<-data.table(readLines('00_Data/s3_analysis_nasanex.csv'))
 
+#df<-process_df(df)
 # Generating frequency table for default df
 result<-frequency_table(process_df(df),50)
 
@@ -287,6 +288,7 @@ datatable(result(),class = 'cell-border stripe',
 plot_result <- reactive({
   
   result_df <- result_tbl() 
+  result_df$range<- factor(result_df$range, levels = as.character(result_df$range))
   result_df$No_of_Files <- format(result_df$frequency,big.mark=",")
   colnames(result_df) <- c("Buckets","frequency","No_of_Files")
   result_df$Percentage_Files <- round(result_df$frequency/nrow(new_df()),0) *100
